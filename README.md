@@ -1,3 +1,5 @@
+[![](https://jitpack.io/v/checoalejandro/XmlToJson.svg)](https://jitpack.io/#checoalejandro/XmlToJson)
+
 # XML to JSON for Android #
 
 XML to JSON is an Android Studio Library which converts easily **XML to JSON** and **JSON to XML**.
