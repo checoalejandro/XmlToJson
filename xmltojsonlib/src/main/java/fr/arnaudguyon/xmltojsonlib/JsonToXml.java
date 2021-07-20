@@ -15,9 +15,10 @@
  */
 package fr.arnaudguyon.xmltojsonlib;
 
-import android.support.annotation.IntRange;
-import android.support.annotation.NonNull;
 import android.util.Xml;
+
+import androidx.annotation.IntRange;
+import androidx.annotation.NonNull;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -30,6 +31,7 @@ import java.io.StringReader;
 import java.io.StringWriter;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Locale;
@@ -56,6 +58,8 @@ public class JsonToXml {
         private JSONObject mJson;
         private HashSet<String> mForcedAttributes = new HashSet<>();
         private HashSet<String> mForcedContent = new HashSet<>();
+        private String mPrefix;
+        private HashMap<String, String> mReplaces = new HashMap<>();
 
         /**
          * Constructor
@@ -85,6 +89,11 @@ public class JsonToXml {
             }
         }
 
+        public Builder setPrefix(String prefix) {
+            mPrefix = prefix;
+            return this;
+        }
+
         /**
          * Force a TAG to be an attribute of the parent TAG
          * @param path Path for the attribute, using format like "/parentTag/childTag/childTagAttribute"
@@ -105,23 +114,37 @@ public class JsonToXml {
             return this;
         }
 
+        public Builder setReplaces(String key, String value) {
+            mReplaces.put(key, value);
+            return this;
+        }
+
         /**
          * Creates the JsonToXml object
          * @return a JsonToXml instance
          */
         public JsonToXml build() {
-            return new JsonToXml(mJson, mForcedAttributes, mForcedContent);
+            return new JsonToXml(mJson, mForcedAttributes, mForcedContent, mPrefix, mReplaces);
         }
     }
 
     private JSONObject mJson;
     private HashSet<String> mForcedAttributes;
     private HashSet<String> mForcedContent;
+    private String mPrefix;
+    private HashMap<String, String> mReplaces;
 
-    private JsonToXml(@NonNull JSONObject jsonObject, @NonNull HashSet<String> forcedAttributes, HashSet<String> forcedContent) {
+    private JsonToXml(
+            @NonNull JSONObject jsonObject,
+            @NonNull HashSet<String> forcedAttributes,
+            HashSet<String> forcedContent,
+            String prefix,
+            HashMap<String, String> replaces) {
         mJson = jsonObject;
         mForcedAttributes = forcedAttributes;
         mForcedContent = forcedContent;
+        mPrefix = prefix;
+        mReplaces = replaces;
     }
 
     /**
@@ -213,7 +236,7 @@ public class JsonToXml {
                 if (object instanceof JSONObject) {
                     JSONObject subObject = (JSONObject) object;
                     String path = node.getPath() + "/" + key;
-                    Node subNode = new Node(key, path);
+                    Node subNode = new Node(mPrefix == null ? key : mPrefix + key, path);
                     node.addChild(subNode);
                     prepareObject(subNode, subObject);
                 } else if (object instanceof JSONArray) {
@@ -243,11 +266,17 @@ public class JsonToXml {
                         value = object.toString();
                     }
                     if (isAttribute(path)) {
-                        node.addAttribute(key, value);
+                        if (mReplaces.containsKey(node.getName())
+                                && mReplaces.get(node.getName()) != null
+                                && mReplaces.get(node.getName()).equals(key)) {
+                            node.addAttribute("xsi:" + key, value);
+                        } else {
+                            node.addAttribute(key, value);
+                        }
                     } else if (isContent(path) ) {
                         node.setContent(value);
                     } else {
-                        Node subNode = new Node(key, node.getPath());
+                        Node subNode = new Node(mPrefix == null ? key : mPrefix + key, node.getPath());
                         subNode.setContent(value);
                         node.addChild(subNode);
                     }
@@ -260,7 +289,7 @@ public class JsonToXml {
         int count = array.length();
         String path = node.getPath() + "/" + key;
         for (int i = 0; i < count; ++i) {
-            Node subNode = new Node(key, path);
+            Node subNode = new Node(mPrefix == null ? key : mPrefix + key, path);
             Object object = array.opt(i);
             if (object != null) {
                 if (object instanceof JSONObject) {
